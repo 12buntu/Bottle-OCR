@@ -517,13 +517,18 @@
                     }
                 });
                 video.srcObject = stream;
-                await video.play();
 
-                // Set canvas size to match video
-                video.addEventListener('loadedmetadata', () => {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
+                // Wait for video to be ready
+                await new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        console.log('Canvas sized to:', canvas.width, 'x', canvas.height);
+                        resolve();
+                    };
                 });
+
+                await video.play();
 
             } catch (err) {
                 console.error('Camera error:', err);
@@ -565,7 +570,15 @@
         }
 
         function captureFrame() {
-            ctx.drawImage(video, 0, 0);
+            // Ensure canvas matches current video dimensions
+            if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                console.log('Resized canvas to:', canvas.width, 'x', canvas.height);
+            }
+
+            // Draw the full video frame to the canvas
+            ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
             return canvas.toDataURL('image/jpeg', 0.85);
         }
 
@@ -609,6 +622,18 @@
             elements.framesStrip.innerHTML = '';
             isCapturing = true;
 
+            // Ensure canvas is properly sized before starting
+            if (video.videoWidth && video.videoHeight) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                console.log('Starting capture with canvas:', canvas.width, 'x', canvas.height);
+            } else {
+                console.warn('Video dimensions not available yet');
+                updateFeedback('error', 'Camera not ready', 'Please wait for camera to initialize');
+                isCapturing = false;
+                return;
+            }
+
             // Reset session
             await fetch(API_BASE + '/reset-session', {
                 method: 'POST',
@@ -621,7 +646,7 @@
             elements.stopBtn.disabled = false;
             elements.processBtn.disabled = true;
 
-            updateFeedback('ok', 'Capturing...', 'Rotate the bottle slowly');
+            updateFeedback('ok', `Capturing (${canvas.width}x${canvas.height})...`, 'Rotate the bottle slowly');
             updateProgress(0, parseInt(elements.maxFramesInput.value), 0);
 
             // Start capture loop
