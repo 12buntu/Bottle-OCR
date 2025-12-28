@@ -1,0 +1,11 @@
+# Bottle OCR Module Dependencies
+flask>=2.0.0
+flask-cors>=3.0.10
+opencv-python>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+pytesseract>=0.3.10
+easyocr>=1.7.0
+
+# Optional: For improved stitching
+# scikit-image>=0.21.0

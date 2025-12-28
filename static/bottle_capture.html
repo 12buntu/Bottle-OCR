@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bottle Text Recognition</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success: #16a34a;
+            --warning: #d97706;
+            --error: #dc2626;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 1.75rem;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            color: var(--text-muted);
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 900px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        /* Video capture area */
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 4/3;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+
+        .guide-lines {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40%;
+            height: 80%;
+            border: 2px dashed rgba(255,255,255,0.5);
+            border-radius: 8px;
+        }
+
+        /* Feedback display */
+        .feedback-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 12px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+        }
+
+        .feedback-bar.status-ok { border-top: 3px solid var(--success); }
+        .feedback-bar.status-warning { border-top: 3px solid var(--warning); }
+        .feedback-bar.status-error { border-top: 3px solid var(--error); }
+        .feedback-bar.status-complete { border-top: 3px solid var(--primary); }
+
+        .feedback-message {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .feedback-action {
+            font-size: 0.875rem;
+            opacity: 0.8;
+        }
+
+        /* Progress bar */
+        .progress-container {
+            margin-top: 16px;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--primary-dark);
+        }
+
+        .btn-secondary {
+            background: var(--border);
+            color: var(--text);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #d1d5db;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        /* Frame thumbnails */
+        .frames-strip {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 12px 0;
+            margin-top: 16px;
+        }
+
+        .frame-thumb {
+            width: 60px;
+            height: 45px;
+            border-radius: 4px;
+            object-fit: cover;
+            border: 2px solid transparent;
+        }
+
+        .frame-thumb.latest {
+            border-color: var(--primary);
+        }
+
+        /* Results area */
+        .results-placeholder {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+
+        .results-content {
+            display: none;
+        }
+
+        .results-content.visible {
+            display: block;
+        }
+
+        .panorama-preview {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .text-output {
+            background: #f1f5f9;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .segment-divider {
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        .copy-btn {
+            margin-top: 12px;
+        }
+
+        /* Metrics */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 12px;
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+
+        .metric-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Loading state */
+        .loading {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 40px;
+        }
+
+        .loading.visible {
+            display: flex;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Settings */
+        .settings {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .setting-row label {
+            font-size: 0.875rem;
+        }
+
+        .setting-row select,
+        .setting-row input {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Bottle Text Recognition</h1>
+            <p>Rotate the bottle slowly in front of the camera to capture all text</p>
+        </header>
+
+        <div class="main-grid">
+            <!-- Capture Panel -->
+            <div class="card">
+                <div class="card-header">Camera Capture</div>
+                <div class="card-body">
+                    <div class="video-container">
+                        <video id="video" autoplay playsinline></video>
+                        <div class="video-overlay">
+                            <div class="guide-lines"></div>
+                        </div>
+                        <div id="feedbackBar" class="feedback-bar status-ok">
+                            <div class="feedback-message">Ready to capture</div>
+                            <div class="feedback-action">Click "Start Capture" and rotate the bottle</div>
+                        </div>
+                    </div>
+
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span id="frameCount">0 frames</span>
+                            <span id="progressPercent">0%</span>
+                        </div>
+                    </div>
+
+                    <div id="framesStrip" class="frames-strip"></div>
+
+                    <div class="controls">
+                        <button id="startBtn" class="btn btn-primary">Start Capture</button>
+                        <button id="stopBtn" class="btn btn-secondary" disabled>Stop</button>
+                        <button id="processBtn" class="btn btn-success" disabled>Process</button>
+                    </div>
+
+                    <div class="settings">
+                        <div class="setting-row">
+                            <label for="captureInterval">Capture interval (ms)</label>
+                            <input type="number" id="captureInterval" value="500" min="200" max="2000" step="100">
+                        </div>
+                        <div class="setting-row">
+                            <label for="maxFrames">Max frames</label>
+                            <input type="number" id="maxFrames" value="20" min="5" max="50">
+                        </div>
+                        <div class="setting-row">
+                            <label for="liveFeedback">Live feedback</label>
+                            <select id="liveFeedback">
+                                <option value="true">Enabled</option>
+                                <option value="false">Disabled</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Panel -->
+            <div class="card">
+                <div class="card-header">Recognition Results</div>
+                <div class="card-body">
+                    <div id="resultsPlaceholder" class="results-placeholder">
+                        <p>Capture and process frames to see extracted text</p>
+                    </div>
+
+                    <div id="loading" class="loading">
+                        <div class="spinner"></div>
+                        <span>Processing frames...</span>
+                    </div>
+
+                    <div id="resultsContent" class="results-content">
+                        <img id="panoramaPreview" class="panorama-preview" alt="Stitched panorama">
+
+                        <div class="metrics-grid">
+                            <div class="metric">
+                                <div id="metricFrames" class="metric-value">0</div>
+                                <div class="metric-label">Frames Used</div>
+                            </div>
+                            <div class="metric">
+                                <div id="metricSegments" class="metric-value">0</div>
+                                <div class="metric-label">Text Segments</div>
+                            </div>
+                            <div class="metric">
+                                <div id="metricChars" class="metric-value">0</div>
+                                <div class="metric-label">Characters</div>
+                            </div>
+                        </div>
+
+                        <h3 style="margin: 20px 0 12px;">Extracted Text</h3>
+                        <div id="textOutput" class="text-output"></div>
+
+                        <button id="copyBtn" class="btn btn-secondary copy-btn" style="width: 100%;">
+                            Copy to Clipboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="captureCanvas" style="display: none;"></canvas>
+
+    <script>
+        // Configuration
+        const API_BASE = window.location.origin + '/bottle-ocr';
+        const SESSION_ID = 'session_' + Date.now();
+
+        // State
+        let video = null;
+        let canvas = null;
+        let ctx = null;
+        let stream = null;
+        let capturedFrames = [];
+        let captureInterval = null;
+        let isCapturing = false;
+
+        // DOM Elements
+        const elements = {
+            video: document.getElementById('video'),
+            canvas: document.getElementById('captureCanvas'),
+            feedbackBar: document.getElementById('feedbackBar'),
+            progressFill: document.getElementById('progressFill'),
+            frameCount: document.getElementById('frameCount'),
+            progressPercent: document.getElementById('progressPercent'),
+            framesStrip: document.getElementById('framesStrip'),
+            startBtn: document.getElementById('startBtn'),
+            stopBtn: document.getElementById('stopBtn'),
+            processBtn: document.getElementById('processBtn'),
+            captureIntervalInput: document.getElementById('captureInterval'),
+            maxFramesInput: document.getElementById('maxFrames'),
+            liveFeedbackSelect: document.getElementById('liveFeedback'),
+            resultsPlaceholder: document.getElementById('resultsPlaceholder'),
+            loading: document.getElementById('loading'),
+            resultsContent: document.getElementById('resultsContent'),
+            panoramaPreview: document.getElementById('panoramaPreview'),
+            textOutput: document.getElementById('textOutput'),
+            copyBtn: document.getElementById('copyBtn'),
+            metricFrames: document.getElementById('metricFrames'),
+            metricSegments: document.getElementById('metricSegments'),
+            metricChars: document.getElementById('metricChars')
+        };
+
+        // Initialize
+        async function init() {
+            video = elements.video;
+            canvas = elements.canvas;
+            ctx = canvas.getContext('2d');
+
+            // Request camera access
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                video.srcObject = stream;
+                await video.play();
+
+                // Set canvas size to match video
+                video.addEventListener('loadedmetadata', () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                });
+
+            } catch (err) {
+                console.error('Camera error:', err);
+                updateFeedback('error', 'Camera access denied', 'Please allow camera access and refresh');
+            }
+
+            // Event listeners
+            elements.startBtn.addEventListener('click', startCapture);
+            elements.stopBtn.addEventListener('click', stopCapture);
+            elements.processBtn.addEventListener('click', processFrames);
+            elements.copyBtn.addEventListener('click', copyToClipboard);
+        }
+
+        function updateFeedback(status, message, action = '') {
+            const bar = elements.feedbackBar;
+            bar.className = 'feedback-bar status-' + status;
+            bar.querySelector('.feedback-message').textContent = message;
+            bar.querySelector('.feedback-action').textContent = action;
+        }
+
+        function updateProgress(frameNum, maxFrames, percent) {
+            elements.progressFill.style.width = percent + '%';
+            elements.frameCount.textContent = frameNum + ' frames';
+            elements.progressPercent.textContent = Math.round(percent) + '%';
+        }
+
+        function addFrameThumbnail(frameData) {
+            const img = document.createElement('img');
+            img.className = 'frame-thumb latest';
+            img.src = frameData;
+
+            // Remove 'latest' from previous thumbnails
+            elements.framesStrip.querySelectorAll('.latest').forEach(el => {
+                el.classList.remove('latest');
+            });
+
+            elements.framesStrip.appendChild(img);
+            elements.framesStrip.scrollLeft = elements.framesStrip.scrollWidth;
+        }
+
+        function captureFrame() {
+            ctx.drawImage(video, 0, 0);
+            return canvas.toDataURL('image/jpeg', 0.85);
+        }
+
+        async function analyzeFrame(frameData, frameIndex) {
+            if (elements.liveFeedbackSelect.value !== 'true') return;
+
+            try {
+                const response = await fetch(API_BASE + '/analyze-frame', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        frame: frameData,
+                        session_id: SESSION_ID,
+                        frame_index: frameIndex,
+                        total_frames_needed: parseInt(elements.maxFramesInput.value)
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    updateFeedback(
+                        result.status,
+                        result.message,
+                        result.feedbacks.length > 0 ? result.feedbacks[0].action : ''
+                    );
+
+                    if (result.rotation_complete && isCapturing) {
+                        stopCapture();
+                        updateFeedback('complete', 'Full rotation captured!', 'Click Process to extract text');
+                    }
+                }
+            } catch (err) {
+                console.error('Analyze error:', err);
+            }
+        }
+
+        async function startCapture() {
+            // Reset state
+            capturedFrames = [];
+            elements.framesStrip.innerHTML = '';
+            isCapturing = true;
+
+            // Reset session
+            await fetch(API_BASE + '/reset-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: SESSION_ID })
+            });
+
+            // Update UI
+            elements.startBtn.disabled = true;
+            elements.stopBtn.disabled = false;
+            elements.processBtn.disabled = true;
+
+            updateFeedback('ok', 'Capturing...', 'Rotate the bottle slowly');
+            updateProgress(0, parseInt(elements.maxFramesInput.value), 0);
+
+            // Start capture loop
+            const interval = parseInt(elements.captureIntervalInput.value);
+            const maxFrames = parseInt(elements.maxFramesInput.value);
+
+            captureInterval = setInterval(async () => {
+                if (capturedFrames.length >= maxFrames) {
+                    stopCapture();
+                    return;
+                }
+
+                const frameData = captureFrame();
+                capturedFrames.push(frameData);
+
+                addFrameThumbnail(frameData);
+                updateProgress(
+                    capturedFrames.length,
+                    maxFrames,
+                    (capturedFrames.length / maxFrames) * 100
+                );
+
+                await analyzeFrame(frameData, capturedFrames.length - 1);
+            }, interval);
+        }
+
+        function stopCapture() {
+            isCapturing = false;
+
+            if (captureInterval) {
+                clearInterval(captureInterval);
+                captureInterval = null;
+            }
+
+            elements.startBtn.disabled = false;
+            elements.stopBtn.disabled = true;
+            elements.processBtn.disabled = capturedFrames.length < 1;
+
+            if (capturedFrames.length > 0) {
+                updateFeedback('ok', `Captured ${capturedFrames.length} frames`, 'Click Process to extract text');
+            }
+        }
+
+        async function processFrames() {
+            if (capturedFrames.length === 0) return;
+
+            // Show loading
+            elements.resultsPlaceholder.style.display = 'none';
+            elements.resultsContent.classList.remove('visible');
+            elements.loading.classList.add('visible');
+            elements.processBtn.disabled = true;
+
+            try {
+                const response = await fetch(API_BASE + '/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        frames: capturedFrames,
+                        separator: '\n---\n'
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    displayResults(result);
+                } else {
+                    throw new Error(result.error || 'Processing failed');
+                }
+
+            } catch (err) {
+                console.error('Process error:', err);
+                updateFeedback('error', 'Processing failed', err.message);
+                elements.resultsPlaceholder.style.display = 'block';
+            } finally {
+                elements.loading.classList.remove('visible');
+                elements.processBtn.disabled = false;
+            }
+        }
+
+        function displayResults(result) {
+            // Show panorama
+            if (result.panorama) {
+                elements.panoramaPreview.src = result.panorama;
+                elements.panoramaPreview.style.display = 'block';
+            } else {
+                elements.panoramaPreview.style.display = 'none';
+            }
+
+            // Update metrics
+            elements.metricFrames.textContent = result.frame_count || capturedFrames.length;
+            elements.metricSegments.textContent = result.segments ? result.segments.length : 0;
+            elements.metricChars.textContent = result.text ? result.text.length : 0;
+
+            // Format and display text
+            let formattedText = result.text || '(No text detected)';
+            formattedText = formattedText.replace(/\n---\n/g, '\n<span class="segment-divider">--- segment ---</span>\n');
+            elements.textOutput.innerHTML = formattedText;
+
+            // Show results
+            elements.resultsContent.classList.add('visible');
+
+            updateFeedback('complete', 'Processing complete!', `Found ${result.segments ? result.segments.length : 0} text segments`);
+        }
+
+        function copyToClipboard() {
+            // Get plain text (without HTML formatting)
+            const text = elements.textOutput.textContent || elements.textOutput.innerText;
+
+            navigator.clipboard.writeText(text).then(() => {
+                elements.copyBtn.textContent = 'Copied!';
+                setTimeout(() => {
+                    elements.copyBtn.textContent = 'Copy to Clipboard';
+                }, 2000);
+            }).catch(err => {
+                console.error('Copy failed:', err);
+            });
+        }
+
+        // Start the app
+        init();
+    </script>
+</body>
+</html>
